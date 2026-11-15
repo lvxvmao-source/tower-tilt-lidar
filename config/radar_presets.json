@@ -1,0 +1,32 @@
+{
+  "presets": {
+    "Helios 16": {
+      "n_channels": 16,
+      "vertical_fov_deg": 30.0,
+      "horizontal_resolution_deg": 0.2,
+      "range_sigma": 0.01,
+      "source": "RoboSense Helios 16 官方规格"
+    },
+    "Helios 32": {
+      "n_channels": 32,
+      "vertical_fov_deg": 26.0,
+      "horizontal_resolution_deg": 0.2,
+      "range_sigma": 0.01,
+      "source": "RoboSense Helios 32 官方规格"
+    },
+    "VLS-64": {
+      "n_channels": 64,
+      "vertical_fov_deg": 26.0,
+      "horizontal_resolution_deg": 0.15,
+      "range_sigma": 0.008,
+      "source": "Velodyne VLP-64 类产品规格参考"
+    },
+    "Ruby 128": {
+      "n_channels": 128,
+      "vertical_fov_deg": 40.0,
+      "horizontal_resolution_deg": 0.1,
+      "range_sigma": 0.005,
+      "source": "RoboSense Ruby 128 官方规格"
+    }
+  }
+}
