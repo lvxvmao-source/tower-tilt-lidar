@@ -14,7 +14,8 @@ from PySide6.QtCore import Qt, QThread, Signal, QTimer
 from PySide6.QtGui import QAction
 
 from core.tower_model import (build_tower, load_tower_from_ply, true_tilt,
-                              true_indicators, _resolve_crossarm_levels, _body_width_at)
+                              true_indicators, _resolve_crossarm_levels,
+                              _body_width_at, base_tilt_deg, settlement_tilt_deg)
 from core.crossarm_analysis import analyze_crossarms
 from core.standards import evaluate
 from core.lidar_scanner import simulate_scan
@@ -60,6 +61,13 @@ class WorkerThread(QThread):
 
             self.log.emit("正在执行激光扫描...")
             t0 = time.time()
+            # 固定种子 → 同一配置的扫描结果可复现，便于对比"改了什么"
+            seed = int(getattr(self.lidar_cfg, "random_seed", 0) or 0)
+            if seed:
+                np.random.seed(seed)
+                self.log.emit(f"随机种子 {seed}（结果可复现）")
+            else:
+                self.log.emit("随机种子 0（每次噪声不同）")
             pcd = simulate_scan(tower, self.lidar_cfg)
             self.log.emit(f"扫描完成: {len(pcd.points)} 点, 耗时 {time.time()-t0:.1f}s")
 
@@ -350,6 +358,15 @@ class MainWindow(QMainWindow):
             self._eval_true = None
             self._tower_cfg = None
         else:
+            # 启用沉降时，把「塔身附加倾斜 + 沉降基础倾斜 = 合成」写进日志，
+            # 便于核对两者是否按预期叠加
+            if tower_cfg.has_settlement():
+                sx, sy = settlement_tilt_deg(tower_cfg)
+                gx, gy = base_tilt_deg(tower_cfg)
+                self.result_panel.append_log(
+                    f"倾角合成：塔身附加 ({tower_cfg.tilt_deg_x:+.3f}°, "
+                    f"{tower_cfg.tilt_deg_y:+.3f}°) + 沉降基础 ({sx:+.3f}°, {sy:+.3f}°)"
+                    f" = 总 ({gx:+.3f}°, {gy:+.3f}°)")
             alpha, delta, tip, _tx, _ty = true_indicators(tower_cfg)
             # X/Y 方向角取与算法同口径的最小二乘轴线方向（带弯曲时与塔基倾角不同）
             lx, ly, _tot, _rate = true_tilt(tower_cfg, solver_cfg.z_min, solver_cfg.z_max)

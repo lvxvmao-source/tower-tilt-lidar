@@ -26,6 +26,9 @@ class LidarConfig:
     scan_sector_deg: float = 120.0
     scan_distance: float = 15.0
     station_heights: Tuple[float, ...] = (6.0, 13.0, 20.0, 27.0, 34.0)
+    # 测距噪声的随机种子。固定值 → 同一配置每次扫描完全可复现；
+    # 0 表示每次运行都换一组随机数（结果会有 ±0.05‰ 的抖动）
+    random_seed: int = 42
     station_bearings_deg: Tuple[float, ...] = (0.0, 90.0, 180.0, 270.0)
 
     def vertical_angles(self) -> np.ndarray:

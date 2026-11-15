@@ -170,14 +170,33 @@ def base_corner_offset(cfg: TowerConfig) -> float:
 
 
 def base_tilt_deg(cfg: TowerConfig) -> Tuple[float, float]:
-    """基础倾斜角（度）。四腿沉降非全零时由沉降平面反算，否则用 tilt_deg_x/y。
+    """塔的总倾角（度）= 塔身相对基础的附加倾斜 + 基础沉降造成的倾斜。
+
+    - `tilt_deg_x/y` 是**塔身相对基础的附加倾斜**（施工偏差、外力等）
+    - 四角沉降反算出的是**基础倾角**
+    - 两者矢量叠加，小角度下直接逐分量相加（20‰ 量级误差约 0.02‰）
 
     坐标约定见 core/frame.py：+x = 南、+y = 东、+z = 上。
     四角坐标：NW(−c,−c)  NE(−c,+c)  SE(+c,+c)  SW(+c,−c)。
     """
+    tx = float(cfg.tilt_deg_x)
+    ty = float(cfg.tilt_deg_y)
     if not cfg.has_settlement():
-        return cfg.tilt_deg_x, cfg.tilt_deg_y
+        return tx, ty
 
+    c = base_corner_offset(cfg)
+    d = {"NW": cfg.settlement_nw, "NE": cfg.settlement_ne,
+         "SE": cfg.settlement_se, "SW": cfg.settlement_sw}
+    tan_x, tan_y = tilt_from_corner_settlement(c, d)
+    tx += float(np.rad2deg(np.arctan(tan_x)))
+    ty += float(np.rad2deg(np.arctan(tan_y)))
+    return tx, ty
+
+
+def settlement_tilt_deg(cfg: TowerConfig) -> Tuple[float, float]:
+    """仅由四角沉降反算出的基础倾角（度），用于界面分项显示"""
+    if not cfg.has_settlement():
+        return 0.0, 0.0
     c = base_corner_offset(cfg)
     d = {"NW": cfg.settlement_nw, "NE": cfg.settlement_ne,
          "SE": cfg.settlement_se, "SW": cfg.settlement_sw}

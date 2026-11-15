@@ -53,21 +53,27 @@ class TowerPanel(QWidget):
         sim_layout.setContentsMargins(0, 0, 0, 0)
 
         # 倾斜角设置
-        tilt_box = QGroupBox("真值倾斜角（仿真用）")
+        tilt_box = QGroupBox("塔身附加倾斜（仿真用）")
         tilt_form = QFormLayout(tilt_box)
         self.tilt_x = QDoubleSpinBox()
         self.tilt_x.setRange(-5.0, 5.0)
         self.tilt_x.setDecimals(2)
         self.tilt_x.setSingleStep(0.1)
         self.tilt_x.setValue(0.5)
-        tilt_form.addRow("θx 南北向倾斜(°):", self.tilt_x)
+        self.tilt_x.setToolTip(
+            "塔身相对基础的附加倾斜（施工偏差、外力等）。\n"
+            "若同时启用了四角沉降，最终总倾角 = 本值 + 沉降反算的基础倾角。")
+        tilt_form.addRow("θx 附加倾斜·南北(°):", self.tilt_x)
 
         self.tilt_y = QDoubleSpinBox()
         self.tilt_y.setRange(-5.0, 5.0)
         self.tilt_y.setDecimals(2)
         self.tilt_y.setSingleStep(0.1)
         self.tilt_y.setValue(0.2)
-        tilt_form.addRow("θy 东西向倾斜(°):", self.tilt_y)
+        self.tilt_y.setToolTip(
+            "塔身相对基础的附加倾斜（施工偏差、外力等）。\n"
+            "若同时启用了四角沉降，最终总倾角 = 本值 + 沉降反算的基础倾角。")
+        tilt_form.addRow("θy 附加倾斜·东西(°):", self.tilt_y)
         sim_layout.addWidget(tilt_box)
 
         # 进阶：基础差异沉降 + 塔身弯曲
@@ -99,6 +105,8 @@ class TowerPanel(QWidget):
         sett_form.addRow("东北角 NE 沉降:", self.sp_ne)
         sett_form.addRow("东南角 SE 沉降:", self.sp_se)
         sett_form.addRow("西南角 SW 沉降:", self.sp_sw)
+        for _sp in (self.sp_nw, self.sp_ne, self.sp_se, self.sp_sw):
+            _sp.valueChanged.connect(self._update_sett_warn)
 
         self.bow_ratio = QDoubleSpinBox()
         self.bow_ratio.setRange(0.0, 0.50)
@@ -111,7 +119,15 @@ class TowerPanel(QWidget):
         )
         sett_form.addRow("塔身弯曲附加比例:", self.bow_ratio)
 
-        self.convert_btn = QPushButton("按 X/Y 倾斜角换算沉降")
+        # 四角全零时的醒目提示（勾选沉降却没填值，最容易误判）
+        self.sett_warn = QLabel("")
+        self.sett_warn.setWordWrap(True)
+        self.sett_warn.setStyleSheet(
+            "background:#FFF3E0; color:#E65100; padding:4px; border-radius:3px;")
+        self.sett_warn.hide()
+        sett_form.addRow(self.sett_warn)
+
+        self.convert_btn = QPushButton("把塔身倾斜转为基础沉降（倾斜清零）")
         self.convert_btn.clicked.connect(self._convert_settlements)
         sett_form.addRow(self.convert_btn)
 
@@ -220,9 +236,42 @@ class TowerPanel(QWidget):
     def _on_settlement_toggled(self, enabled):
         for sp in (self.sp_nw, self.sp_ne, self.sp_se, self.sp_sw):
             sp.setEnabled(enabled)
+        # 叠加语义：沉降反算的基础倾角 + 上面的塔身附加倾斜，
+        # 所以倾斜输入框始终可编辑，不再灰掉
+        if enabled:
+            zeros = all(abs(sp.value()) < 1e-9 for sp in
+                        (self.sp_nw, self.sp_ne, self.sp_se, self.sp_sw))
+            tip = ("已启用沉降：倾斜角改为由四角沉降反算。\n"
+                   + ("当前四角全为 0，塔将按【竖直】处理，倾斜率为 0。"
+                      if zeros else ""))
+            self.use_settlement.setToolTip(tip)
+        else:
+            self.use_settlement.setToolTip(
+                "勾选后忽略上面的 θx/θy 倾斜角，改由四个塔脚的独立沉降量决定基础倾斜。")
+        if hasattr(self, "sett_warn"):
+            self._update_sett_warn()
+
+    def _update_sett_warn(self, *args):
+        """勾选了沉降但四角全为 0 → 塔会被当成竖直的，必须提示"""
+        if not self.use_settlement.isChecked():
+            self.sett_warn.hide()
+            return
+        zeros = all(abs(sp.value()) < 1e-9 for sp in
+                    (self.sp_nw, self.sp_ne, self.sp_se, self.sp_sw))
+        if zeros:
+            self.sett_warn.setText(
+                "四角沉降全为 0：本次总倾角 = 上面的塔身附加倾斜（沉降不贡献）。")
+            self.sett_warn.setStyleSheet(
+                "background:#ECEFF1; color:#546E7A; padding:4px; border-radius:3px;")
+            self.sett_warn.show()
+        else:
+            self.sett_warn.hide()
 
     def _convert_settlements(self):
-        """按当前 X/Y 倾斜角反算四腿沉降量并填入"""
+        """把当前的塔身附加倾斜「归因」给四角沉降：填好沉降后把倾斜清零
+
+        叠加语义下，若不把倾斜清零，换算出来的沉降会再叠一次，总倾角翻倍。
+        """
         cfg = self.get_config()
         ne, se, sw, nw = settlements_from_tilt(cfg, self.tilt_x.value(), self.tilt_y.value())
         self.sp_ne.setValue(round(ne * 1000.0))
@@ -230,6 +279,11 @@ class TowerPanel(QWidget):
         self.sp_sw.setValue(round(sw * 1000.0))
         self.sp_nw.setValue(round(nw * 1000.0))
         self.use_settlement.setChecked(True)
+        # 倾斜已由沉降承担，清零避免重复叠加
+        self.tilt_x.blockSignals(True); self.tilt_y.blockSignals(True)
+        self.tilt_x.setValue(0.0); self.tilt_y.setValue(0.0)
+        self.tilt_x.blockSignals(False); self.tilt_y.blockSignals(False)
+        self._update_sett_warn()
 
     def _on_height_changed(self, value):
         """塔高变化时给出提示：截断上限需要跟着调整，否则中轴点会跑出塔身"""
@@ -315,6 +369,16 @@ class LidarPanel(QWidget):
         self.distance.setRange(5, 50)
         self.distance.setValue(15.0)
         custom_form.addRow("扫描距离(m):", self.distance)
+
+        self.seed = QSpinBox()
+        self.seed.setRange(0, 999999)
+        self.seed.setValue(42)
+        self.seed.setSpecialValueText("每次随机")
+        self.seed.setToolTip(
+            "测距噪声的随机种子。\n"
+            "固定值（如 42）= 同一组参数每次扫描结果完全一致，便于对比调试；\n"
+            "0 = 每次运行换一组噪声，结果会有 ±0.05‰ 左右的抖动。")
+        custom_form.addRow("随机种子:", self.seed)
 
         layout.addWidget(custom_box)
 
@@ -437,6 +501,7 @@ class LidarPanel(QWidget):
             scan_distance=self.distance.value(),
             station_bearings_deg=self.selected_bearings(),
             station_heights=self.station_heights(),
+            random_seed=self.seed.value(),
         )
 
 
