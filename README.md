@@ -56,7 +56,7 @@ tower_tilt_project/
 │   └── point_io.py          实测点云导入与规范化
 ├── ui/                      PySide6 界面
 ├── experiments/             自检与消融实验脚本
-└── docs/                    算法原理与讲义
+└── 使用说明.txt             操作手册
 ```
 
 ---
@@ -112,11 +112,9 @@ python -m PyInstaller build_exe.spec --noconfirm
 
 ---
 
-## 文档
+## 使用说明
 
-- `docs/算法讲义-从直觉到公式.md` —— 零基础讲解，先直觉后公式
-- `docs/杆塔倾斜激光测量算法原理.md` —— 论文体例，含推导与实验
-- `docs/使用说明.txt` —— 面向使用者的操作说明
+见根目录 **`使用说明.txt`**：含界面图示、最快上手步骤、两期对比用法、系统要求。
 
 ---
 

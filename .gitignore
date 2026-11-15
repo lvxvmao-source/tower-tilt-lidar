@@ -22,5 +22,8 @@ data/*.ply
 .DS_Store
 Thumbs.db
 
+# 内部文档（不随仓库同步）
+docs/
+
 # 日志
 *.log
